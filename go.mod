@@ -1,4 +1,4 @@
-module github.com/hashicorp/terraform-provider-scaffolding-framework
+module github.com/jindrichskupa/terraform-provider-firezone
 
 go 1.19
 
@@ -8,6 +8,8 @@ require (
 	github.com/hashicorp/terraform-plugin-go v0.15.0
 	github.com/hashicorp/terraform-plugin-log v0.8.0
 	github.com/hashicorp/terraform-plugin-testing v1.2.0
+
+	github.com/jindrichskupa/firezone-client-go v0.0.0-20230408093023-e5c9789fcbe7
 )
 
 require (
