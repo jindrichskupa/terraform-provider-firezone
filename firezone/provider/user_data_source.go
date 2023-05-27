@@ -53,10 +53,12 @@ func (d *UserDataSource) Schema(ctx context.Context, req datasource.SchemaReques
 			"email": schema.StringAttribute{
 				MarkdownDescription: "User email",
 				Computed:            true,
+				Optional:            true,
 			},
 			"id": schema.StringAttribute{
 				MarkdownDescription: "User identifier",
-				Required:            true,
+				Optional:            true,
+				Computed:            true,
 			},
 		},
 	}
@@ -92,7 +94,12 @@ func (d *UserDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 		return
 	}
 
-	user, err := d.client.GetUser(data.Id.ValueString())
+	userKey := data.Id.ValueString()
+	if data.Id.ValueString() == "" {
+		userKey = data.Email.ValueString()
+	}
+
+	user, err := d.client.GetUser(userKey)
 
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read user, got error: %s", err))
