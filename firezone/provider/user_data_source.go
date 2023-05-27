@@ -26,14 +26,10 @@ type UserDataSource struct {
 
 // UserDataSourceModel describes the data source data model.
 type UserDataSourceModel struct {
-	Id                 types.String `tfsdk:"id"`
-	Email              types.String `tfsdk:"email"`
-	Role               types.String `tfsdk:"role"`
-	LastSignedInAt     types.String `tfsdk:"last_signed_in_at"`
-	LastSignedInMethod types.String `tfsdk:"last_signed_in_method"`
-	UpdatedAt          types.String `tfsdk:"updated_at"`
-	InsertedAt         types.String `tfsdk:"inserted_at"`
-	DisabledAt         types.String `tfsdk:"disabled_at"`
+	Id         types.String `tfsdk:"id"`
+	Email      types.String `tfsdk:"email"`
+	Role       types.String `tfsdk:"role"`
+	DisabledAt types.String `tfsdk:"disabled_at"`
 }
 
 func (d *UserDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -50,33 +46,17 @@ func (d *UserDataSource) Schema(ctx context.Context, req datasource.SchemaReques
 				MarkdownDescription: "User disabled at",
 				Computed:            true,
 			},
-			"updated_at": schema.StringAttribute{
-				MarkdownDescription: "User updated at",
-				Computed:            true,
-			},
-			"inserted_at": schema.StringAttribute{
-				MarkdownDescription: "User inserted at",
-				Computed:            true,
-			},
-			"last_signed_in_method": schema.StringAttribute{
-				MarkdownDescription: "User last signed in method",
-				Computed:            true,
-			},
-			"last_signed_in_at": schema.StringAttribute{
-				MarkdownDescription: "User last signed in at",
-				Computed:            true,
-			},
 			"role": schema.StringAttribute{
 				MarkdownDescription: "User role",
 				Computed:            true,
 			},
 			"email": schema.StringAttribute{
 				MarkdownDescription: "User email",
-				Required:            true,
+				Computed:            true,
 			},
 			"id": schema.StringAttribute{
 				MarkdownDescription: "User identifier",
-				Computed:            true,
+				Required:            true,
 			},
 		},
 	}
@@ -112,17 +92,16 @@ func (d *UserDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 		return
 	}
 
-	// If applicable, this is a great opportunity to initialize any necessary
-	// provider client data and make a call using it.
-	// httpResp, err := d.client.Do(httpReq)
-	// if err != nil {
-	//     resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read example, got error: %s", err))
-	//     return
-	// }
+	user, err := d.client.GetUser(data.Id.ValueString())
 
-	// For the purposes of this example code, hardcoding a response value to
-	// save into the Terraform state.
-	data.Id = types.StringValue("example-id")
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read user, got error: %s", err))
+		return
+	}
+
+	data.Id = types.StringValue(user.ID)
+	data.Email = types.StringValue(user.Email)
+	data.Role = types.StringValue(user.Role)
 
 	// Write logs using the tflog package
 	// Documentation: https://terraform.io/plugin/log

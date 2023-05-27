@@ -108,6 +108,7 @@ func (p *FirezoneProvider) Resources(ctx context.Context) []func() resource.Reso
 	return []func() resource.Resource{
 		NewUserResource,
 		NewRuleResource,
+		NewDeviceResource,
 	}
 }
 

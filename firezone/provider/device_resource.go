@@ -7,8 +7,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -31,25 +31,18 @@ type DeviceResource struct {
 
 // DeviceResourceModel describes the resource data model.
 type DeviceResourceModel struct {
-	Id                            types.String `tfsdk:"id"`
-	AllowedIPs                    []string     `tfsdk:"allowed_ips"`
-	Description                   types.String `tfsdk:"description"`
-	DNS                           []string     `tfsdk:"dns"`
+	Id types.String `tfsdk:"id"`
+	// AllowedIPs                    types.List   `tfsdk:"allowed_ips"`
+	Description types.String `tfsdk:"description"`
+	// DNS                           types.List   `tfsdk:"dns"`
 	Endpoint                      types.String `tfsdk:"endpoint"`
-	InsertedAt                    types.String `tfsdk:"inserted_at"`
 	IPv4                          types.String `tfsdk:"ipv4"`
 	IPv6                          types.String `tfsdk:"ipv6"`
-	LatestHandshake               types.String `tfsdk:"latest_handshake"`
 	MTU                           types.Int64  `tfsdk:"mtu"`
 	Name                          types.String `tfsdk:"name"`
 	PersistentKeepalive           types.Int64  `tfsdk:"persistent_keepalive"`
 	PresharedKey                  types.String `tfsdk:"preshared_key"`
 	PublicKey                     types.String `tfsdk:"public_key"`
-	RemoteIP                      types.String `tfsdk:"remote_ip"`
-	RXBytes                       interface{}  `tfsdk:"rx_bytes"`
-	ServerPublicKey               types.String `tfsdk:"server_public_key"`
-	TXBytes                       interface{}  `tfsdk:"tx_bytes"`
-	UpdatedAt                     types.String `tfsdk:"updated_at,omitempty"`
 	UseDefaultAllowedIPs          types.Bool   `tfsdk:"use_default_allowed_ips"`
 	UseDefaultDNS                 types.Bool   `tfsdk:"use_default_dns"`
 	UseDefaultEndpoint            types.Bool   `tfsdk:"use_default_endpoint"`
@@ -68,19 +61,84 @@ func (r *DeviceResource) Schema(ctx context.Context, req resource.SchemaRequest,
 		MarkdownDescription: "Device resource",
 
 		Attributes: map[string]schema.Attribute{
-			"updated_at": schema.StringAttribute{
-				MarkdownDescription: "Device updated at",
+			"endpoint": schema.StringAttribute{
+				MarkdownDescription: "Device endpoint",
 				Optional:            true,
 				Computed:            true,
-				Default:             stringdefault.StaticString(""),
 			},
-			"inserted_at": schema.StringAttribute{
-				MarkdownDescription: "Device inserted at",
+			"preshared_key": schema.StringAttribute{
+				MarkdownDescription: "Device preshared key",
 				Optional:            true,
 				Computed:            true,
-				Default:             stringdefault.StaticString(""),
+				Sensitive:           true,
 			},
-
+			"mtu": schema.Int64Attribute{
+				MarkdownDescription: "Device MTU",
+				Optional:            true,
+				Computed:            true,
+			},
+			"use_default_dns": schema.BoolAttribute{
+				MarkdownDescription: "Device use default DNS",
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(true),
+			},
+			"use_default_endpoint": schema.BoolAttribute{
+				MarkdownDescription: "Device use default endpoint",
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(true),
+			},
+			"use_default_mtu": schema.BoolAttribute{
+				MarkdownDescription: "Device use default MTU",
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(true),
+			},
+			"use_default_allowed_ips": schema.BoolAttribute{
+				MarkdownDescription: "Device use default allowed ips",
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(true),
+			},
+			"use_default_persistent_keepalive": schema.BoolAttribute{
+				MarkdownDescription: "Device use default persistent keepalive",
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(true),
+			},
+			"persistent_keepalive": schema.Int64Attribute{
+				MarkdownDescription: "Device persistent keepalive",
+				Optional:            true,
+				Computed:            true,
+			},
+			"ipv6": schema.StringAttribute{
+				MarkdownDescription: "Device IPv6",
+				Optional:            true,
+				Computed:            true,
+			},
+			"ipv4": schema.StringAttribute{
+				MarkdownDescription: "Device IPv4",
+				Optional:            true,
+				Computed:            true,
+			},
+			"description": schema.StringAttribute{
+				MarkdownDescription: "Device description",
+				Optional:            true,
+				Computed:            true,
+			},
+			// "allowed_ips": schema.ListAttribute{
+			// 	MarkdownDescription: "Device allowed ips",
+			// 	Optional:            true,
+			// },
+			"public_key": schema.StringAttribute{
+				MarkdownDescription: "Device public key",
+				Required:            true,
+			},
+			"name": schema.StringAttribute{
+				MarkdownDescription: "Device name",
+				Required:            true,
+			},
 			"user_id": schema.StringAttribute{
 				MarkdownDescription: "Device user id",
 				Required:            true,
@@ -126,7 +184,25 @@ func (r *DeviceResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	device, err := r.client.CreateDevice(fz.Device{})
+	device, err := r.client.CreateDevice(fz.Device{
+		UserId:      data.UserId.ValueString(),
+		Name:        data.Name.ValueString(),
+		PublicKey:   data.PublicKey.ValueString(),
+		Description: data.Description.ValueString(),
+		IPv4:        data.IPv4.ValueString(),
+		IPv6:        data.IPv6.ValueString(),
+		// AllowedIPs:  data.AllowedIPs.ValueList(),
+		Endpoint:     data.Endpoint.ValueString(),
+		PresharedKey: data.PresharedKey.ValueString(),
+		MTU:          int(data.MTU.ValueInt64()),
+		// DNS:                           data.DNS.ValueString(),
+		PersistentKeepalive:           int(data.PersistentKeepalive.ValueInt64()),
+		UseDefaultDNS:                 data.UseDefaultDNS.ValueBool(),
+		UseDefaultEndpoint:            data.UseDefaultEndpoint.ValueBool(),
+		UseDefaultMTU:                 data.UseDefaultMTU.ValueBool(),
+		UseDefaultAllowedIPs:          data.UseDefaultAllowedIPs.ValueBool(),
+		UseDefaultPersistentKeepalive: data.UseDefaultPersistentKeepalive.ValueBool(),
+	})
 
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create device, got error: %s", err))
@@ -135,9 +211,22 @@ func (r *DeviceResource) Create(ctx context.Context, req resource.CreateRequest,
 
 	data.Id = types.StringValue(device.ID)
 	data.UserId = types.StringValue(device.UserId)
-
-	data.UpdatedAt = types.StringValue(device.UpdatedAt)
-	data.InsertedAt = types.StringValue(device.InsertedAt)
+	data.Name = types.StringValue(device.Name)
+	data.PublicKey = types.StringValue(device.PublicKey)
+	data.Description = types.StringValue(device.Description)
+	data.IPv4 = types.StringValue(device.IPv4)
+	data.IPv6 = types.StringValue(device.IPv6)
+	// data.AllowedIPs, = types.ListValue(device.AllowedIPs)
+	data.Endpoint = types.StringValue(device.Endpoint)
+	data.PresharedKey = types.StringValue(device.PresharedKey)
+	data.MTU = types.Int64Value(int64(int64(device.MTU)))
+	// data.DNS = types.StringValue(device.DNS)
+	data.PersistentKeepalive = types.Int64Value(int64(device.PersistentKeepalive))
+	data.UseDefaultAllowedIPs = types.BoolValue(device.UseDefaultAllowedIPs)
+	data.UseDefaultDNS = types.BoolValue(device.UseDefaultDNS)
+	data.UseDefaultEndpoint = types.BoolValue(device.UseDefaultEndpoint)
+	data.UseDefaultMTU = types.BoolValue(device.UseDefaultMTU)
+	data.UseDefaultPersistentKeepalive = types.BoolValue(device.UseDefaultPersistentKeepalive)
 
 	// Write logs using the tflog package
 	// Documentation: https://terraform.io/plugin/log
@@ -157,7 +246,7 @@ func (r *DeviceResource) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 
-	device, err := r.client.GetDevice(data.Id.String())
+	device, err := r.client.GetDevice(data.Id.ValueString())
 
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read device, got error: %s", err))
@@ -166,9 +255,22 @@ func (r *DeviceResource) Read(ctx context.Context, req resource.ReadRequest, res
 
 	data.Id = types.StringValue(device.ID)
 	data.UserId = types.StringValue(device.UserId)
-
-	data.UpdatedAt = types.StringValue(device.UpdatedAt)
-	data.InsertedAt = types.StringValue(device.InsertedAt)
+	data.Name = types.StringValue(device.Name)
+	data.PublicKey = types.StringValue(device.PublicKey)
+	data.Description = types.StringValue(device.Description)
+	data.IPv4 = types.StringValue(device.IPv4)
+	data.IPv6 = types.StringValue(device.IPv6)
+	// data.AllowedIPs, = types.ListValue(device.AllowedIPs)
+	data.Endpoint = types.StringValue(device.Endpoint)
+	data.PresharedKey = types.StringValue(device.PresharedKey)
+	data.MTU = types.Int64Value(int64(device.MTU))
+	// data.DNS = types.StringValue(device.DNS)
+	data.PersistentKeepalive = types.Int64Value(int64(device.PersistentKeepalive))
+	data.UseDefaultAllowedIPs = types.BoolValue(device.UseDefaultAllowedIPs)
+	data.UseDefaultDNS = types.BoolValue(device.UseDefaultDNS)
+	data.UseDefaultEndpoint = types.BoolValue(device.UseDefaultEndpoint)
+	data.UseDefaultMTU = types.BoolValue(device.UseDefaultMTU)
+	data.UseDefaultPersistentKeepalive = types.BoolValue(device.UseDefaultPersistentKeepalive)
 
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -184,7 +286,25 @@ func (r *DeviceResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
-	device, err := r.client.UpdateDevice(data.Id.String(), fz.Device{})
+	device, err := r.client.UpdateDevice(data.Id.ValueString(), fz.Device{
+		UserId:      data.UserId.ValueString(),
+		Name:        data.Name.ValueString(),
+		PublicKey:   data.PublicKey.ValueString(),
+		Description: data.Description.ValueString(),
+		IPv4:        data.IPv4.ValueString(),
+		IPv6:        data.IPv6.ValueString(),
+		// AllowedIPs:  data.AllowedIPs.ValueList(),
+		Endpoint:     data.Endpoint.ValueString(),
+		PresharedKey: data.PresharedKey.ValueString(),
+		MTU:          int(data.MTU.ValueInt64()),
+		// DNS:                           data.DNS.ValueString(),
+		PersistentKeepalive:           int(data.PersistentKeepalive.ValueInt64()),
+		UseDefaultDNS:                 data.UseDefaultDNS.ValueBool(),
+		UseDefaultEndpoint:            data.UseDefaultEndpoint.ValueBool(),
+		UseDefaultMTU:                 data.UseDefaultMTU.ValueBool(),
+		UseDefaultAllowedIPs:          data.UseDefaultAllowedIPs.ValueBool(),
+		UseDefaultPersistentKeepalive: data.UseDefaultPersistentKeepalive.ValueBool(),
+	})
 
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update device, got error: %s", err))
@@ -193,9 +313,22 @@ func (r *DeviceResource) Update(ctx context.Context, req resource.UpdateRequest,
 
 	data.Id = types.StringValue(device.ID)
 	data.UserId = types.StringValue(device.UserId)
-
-	data.UpdatedAt = types.StringValue(device.UpdatedAt)
-	data.InsertedAt = types.StringValue(device.InsertedAt)
+	data.Name = types.StringValue(device.Name)
+	data.PublicKey = types.StringValue(device.PublicKey)
+	data.Description = types.StringValue(device.Description)
+	data.IPv4 = types.StringValue(device.IPv4)
+	data.IPv6 = types.StringValue(device.IPv6)
+	// data.AllowedIPs, = types.ListValue(device.AllowedIPs)
+	data.Endpoint = types.StringValue(device.Endpoint)
+	data.PresharedKey = types.StringValue(device.PresharedKey)
+	data.MTU = types.Int64Value(int64(device.MTU))
+	// data.DNS = types.StringValue(device.DNS)
+	data.PersistentKeepalive = types.Int64Value(int64(device.PersistentKeepalive))
+	data.UseDefaultAllowedIPs = types.BoolValue(device.UseDefaultAllowedIPs)
+	data.UseDefaultDNS = types.BoolValue(device.UseDefaultDNS)
+	data.UseDefaultEndpoint = types.BoolValue(device.UseDefaultEndpoint)
+	data.UseDefaultMTU = types.BoolValue(device.UseDefaultMTU)
+	data.UseDefaultPersistentKeepalive = types.BoolValue(device.UseDefaultPersistentKeepalive)
 
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -211,13 +344,10 @@ func (r *DeviceResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		return
 	}
 
-	err := r.client.DeleteDevice(data.Id.String())
+	err := r.client.DeleteDevice(data.Id.ValueString())
 
-	// If applicable, this is a great opportunity to initialize any necessary
-	// provider client data and make a call using it.
-	// httpResp, err := r.client.Do(httpReq)
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete device, got error: %s", err))
+		// resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete device, got error: %s", err))
 		return
 	}
 }

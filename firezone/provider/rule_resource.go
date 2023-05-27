@@ -3,13 +3,15 @@ package provider
 import (
 	"context"
 	"fmt"
+	"regexp"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
@@ -37,8 +39,6 @@ type RuleResourceModel struct {
 	Destination types.String `tfsdk:"destination"`
 	PortRange   types.String `tfsdk:"port_range"`
 	PortType    types.String `tfsdk:"port_type"`
-	UpdatedAt   types.String `tfsdk:"updated_at"`
-	InsertedAt  types.String `tfsdk:"inserted_at"`
 }
 
 func (r *RuleResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -51,43 +51,77 @@ func (r *RuleResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 		MarkdownDescription: "Rule resource",
 
 		Attributes: map[string]schema.Attribute{
-			"updated_at": schema.StringAttribute{
-				MarkdownDescription: "Rule updated at",
-				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString(""),
-			},
-			"inserted_at": schema.StringAttribute{
-				MarkdownDescription: "Rule inserted at",
-				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString(""),
-			},
 			"port_type": schema.StringAttribute{
 				MarkdownDescription: "Rule port type",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplaceIfConfigured(),
+				},
+				Validators: []validator.String{
+					// These are example validators from terraform-plugin-framework-validators
+					stringvalidator.LengthBetween(1, 256),
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^(tcp|udp)$`),
+						"must be either 'tcp' or 'udp'",
+					),
+				},
 			},
 			"port_range": schema.StringAttribute{
 				MarkdownDescription: "Rule port range",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplaceIfConfigured(),
+				},
+				Validators: []validator.String{
+					// These are example validators from terraform-plugin-framework-validators
+					stringvalidator.LengthBetween(1, 256),
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^([1-9]?[0-9]*|[1-9]?[0-9]* - [1-9]?[0-9]*)$`),
+						"must contain single port or port range in format 'port' or 'port - port' (with spaces)",
+					),
+				},
 			},
 			"destination": schema.StringAttribute{
 				MarkdownDescription: "Rule destination",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplaceIfConfigured(),
+				},
 			},
 			"action": schema.StringAttribute{
 				MarkdownDescription: "Rule action",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplaceIfConfigured(),
+				},
+				Validators: []validator.String{
+					// These are example validators from terraform-plugin-framework-validators
+					stringvalidator.LengthBetween(1, 256),
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^(accept|drop)$`),
+						"must be either 'accept' or 'drop'",
+					),
+				},
 			},
 			"user_id": schema.StringAttribute{
 				MarkdownDescription: "Rule user id",
-				Required:            true,
+				Computed:            true,
+				Optional:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplaceIfConfigured(),
+				},
 			},
 			"id": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "Rule identifier",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplaceIfConfigured(),
 				},
 			},
 		},
@@ -125,11 +159,11 @@ func (r *RuleResource) Create(ctx context.Context, req resource.CreateRequest, r
 	}
 
 	rule, err := r.client.CreateRule(fz.Rule{
-		UserId:      data.UserId.String(),
-		Action:      data.Action.String(),
-		Destination: data.Destination.String(),
-		PortRange:   data.PortRange.String(),
-		PortType:    data.PortType.String(),
+		UserId:      data.UserId.ValueString(),
+		Action:      data.Action.ValueString(),
+		Destination: data.Destination.ValueString(),
+		PortRange:   data.PortRange.ValueString(),
+		PortType:    data.PortType.ValueString(),
 	})
 
 	if err != nil {
@@ -143,8 +177,6 @@ func (r *RuleResource) Create(ctx context.Context, req resource.CreateRequest, r
 	data.Destination = types.StringValue(rule.Destination)
 	data.PortRange = types.StringValue(rule.PortRange)
 	data.PortType = types.StringValue(rule.PortType)
-	data.UpdatedAt = types.StringValue(rule.UpdatedAt)
-	data.InsertedAt = types.StringValue(rule.InsertedAt)
 
 	// Write logs using the tflog package
 	// Documentation: https://terraform.io/plugin/log
@@ -164,7 +196,7 @@ func (r *RuleResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 
-	rule, err := r.client.GetRule(data.Id.String())
+	rule, err := r.client.GetRule(data.Id.ValueString())
 
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read rule, got error: %s", err))
@@ -177,8 +209,6 @@ func (r *RuleResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	data.Destination = types.StringValue(rule.Destination)
 	data.PortRange = types.StringValue(rule.PortRange)
 	data.PortType = types.StringValue(rule.PortType)
-	data.UpdatedAt = types.StringValue(rule.UpdatedAt)
-	data.InsertedAt = types.StringValue(rule.InsertedAt)
 
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -194,12 +224,12 @@ func (r *RuleResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
-	rule, err := r.client.UpdateRule(data.Id.String(), fz.Rule{
-		UserId:      data.UserId.String(),
-		Action:      data.Action.String(),
-		Destination: data.Destination.String(),
-		PortRange:   data.PortRange.String(),
-		PortType:    data.PortType.String(),
+	rule, err := r.client.UpdateRule(data.Id.ValueString(), fz.Rule{
+		UserId:      data.UserId.ValueString(),
+		Action:      data.Action.ValueString(),
+		Destination: data.Destination.ValueString(),
+		PortRange:   data.PortRange.ValueString(),
+		PortType:    data.PortType.ValueString(),
 	})
 
 	if err != nil {
@@ -213,8 +243,6 @@ func (r *RuleResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	data.Destination = types.StringValue(rule.Destination)
 	data.PortRange = types.StringValue(rule.PortRange)
 	data.PortType = types.StringValue(rule.PortType)
-	data.UpdatedAt = types.StringValue(rule.UpdatedAt)
-	data.InsertedAt = types.StringValue(rule.InsertedAt)
 
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -230,7 +258,7 @@ func (r *RuleResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 		return
 	}
 
-	err := r.client.DeleteRule(data.Id.String())
+	err := r.client.DeleteRule(data.Id.ValueString())
 
 	// If applicable, this is a great opportunity to initialize any necessary
 	// provider client data and make a call using it.

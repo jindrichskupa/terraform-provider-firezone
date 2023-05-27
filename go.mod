@@ -5,11 +5,11 @@ go 1.19
 require (
 	github.com/hashicorp/terraform-plugin-docs v0.14.1
 	github.com/hashicorp/terraform-plugin-framework v1.2.0
+	github.com/hashicorp/terraform-plugin-framework-validators v0.10.0
 	github.com/hashicorp/terraform-plugin-go v0.15.0
 	github.com/hashicorp/terraform-plugin-log v0.8.0
 	github.com/hashicorp/terraform-plugin-testing v1.2.0
-
-	github.com/jindrichskupa/firezone-client-go v0.0.0-20230408093023-e5c9789fcbe7
+	github.com/jindrichskupa/firezone-client-go v0.0.0-20230527125708-0f540f6c83aa
 )
 
 require (

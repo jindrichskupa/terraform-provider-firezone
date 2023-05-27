@@ -3,13 +3,16 @@ package provider
 import (
 	"context"
 	"fmt"
+	"regexp"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
@@ -31,14 +34,10 @@ type UserResource struct {
 
 // UserResourceModel describes the resource data model.
 type UserResourceModel struct {
-	Id                 types.String `tfsdk:"id"`
-	Email              types.String `tfsdk:"email"`
-	Role               types.String `tfsdk:"role"`
-	LastSignedInAt     types.String `tfsdk:"last_signed_in_at"`
-	LastSignedInMethod types.String `tfsdk:"last_signed_in_method"`
-	UpdatedAt          types.String `tfsdk:"updated_at"`
-	InsertedAt         types.String `tfsdk:"inserted_at"`
-	DisabledAt         types.String `tfsdk:"disabled_at"`
+	Id         types.String `tfsdk:"id"`
+	Email      types.String `tfsdk:"email"`
+	Role       types.String `tfsdk:"role"`
+	DisabledAt types.String `tfsdk:"disabled_at"`
 }
 
 func (r *UserResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -57,37 +56,29 @@ func (r *UserResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 				Computed:            true,
 				Default:             stringdefault.StaticString(""),
 			},
-			"updated_at": schema.StringAttribute{
-				MarkdownDescription: "User updated at",
-				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString(""),
-			},
-			"inserted_at": schema.StringAttribute{
-				MarkdownDescription: "User inserted at",
-				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString(""),
-			},
-			"last_signed_in_method": schema.StringAttribute{
-				MarkdownDescription: "User last signed in method",
-				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString(""),
-			},
-			"last_signed_in_at": schema.StringAttribute{
-				MarkdownDescription: "User last signed in at",
-				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString(""),
-			},
 			"role": schema.StringAttribute{
 				MarkdownDescription: "User role",
 				Required:            true,
+				Validators: []validator.String{
+					// These are example validators from terraform-plugin-framework-validators
+					stringvalidator.LengthBetween(1, 256),
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^(admin|unprivileged)$`),
+						"must be either admin or unprivileged",
+					),
+				},
 			},
 			"email": schema.StringAttribute{
 				MarkdownDescription: "User email",
 				Required:            true,
+				Validators: []validator.String{
+					// These are example validators from terraform-plugin-framework-validators
+					stringvalidator.LengthBetween(1, 256),
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^([0-9a-z]*@[0-9a-z]*\.[a-z]*)$`),
+						"must be a valid email address",
+					),
+				},
 			},
 			"id": schema.StringAttribute{
 				Computed:            true,
@@ -131,8 +122,8 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 	}
 
 	user, err := r.client.CreateUser(fz.User{
-		Email: data.Email.String(),
-		Role:  data.Role.String(),
+		Email: data.Email.ValueString(),
+		Role:  data.Role.ValueString(),
 	})
 
 	if err != nil {
@@ -146,10 +137,6 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 	data.Id = types.StringValue(user.ID)
 	data.Email = types.StringValue(user.Email)
 	data.Role = types.StringValue(user.Role)
-	data.LastSignedInAt = types.StringValue(user.LastSignedInAt)
-	data.LastSignedInMethod = types.StringValue(user.LastSignedInMethod)
-	data.UpdatedAt = types.StringValue(user.UpdatedAt)
-	data.InsertedAt = types.StringValue(user.InsertedAt)
 	data.DisabledAt = types.StringValue(user.DisabledAt)
 
 	// Write logs using the tflog package
@@ -170,7 +157,7 @@ func (r *UserResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 
-	user, err := r.client.GetUser(data.Id.String())
+	user, err := r.client.GetUser(data.Id.ValueString())
 
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read user, got error: %s", err))
@@ -180,11 +167,6 @@ func (r *UserResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	data.Id = types.StringValue(user.ID)
 	data.Email = types.StringValue(user.Email)
 	data.Role = types.StringValue(user.Role)
-	data.LastSignedInAt = types.StringValue(user.LastSignedInAt)
-	data.LastSignedInMethod = types.StringValue(user.LastSignedInMethod)
-	data.UpdatedAt = types.StringValue(user.UpdatedAt)
-	data.InsertedAt = types.StringValue(user.InsertedAt)
-	data.DisabledAt = types.StringValue(user.DisabledAt)
 
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -200,9 +182,9 @@ func (r *UserResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
-	user, err := r.client.UpdateUser(data.Id.String(), fz.User{
-		Email: data.Email.String(),
-		Role:  data.Role.String(),
+	user, err := r.client.UpdateUser(data.Id.ValueString(), fz.User{
+		Email: data.Email.ValueString(),
+		Role:  data.Role.ValueString(),
 	})
 
 	if err != nil {
@@ -213,10 +195,6 @@ func (r *UserResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	data.Id = types.StringValue(user.ID)
 	data.Email = types.StringValue(user.Email)
 	data.Role = types.StringValue(user.Role)
-	data.LastSignedInAt = types.StringValue(user.LastSignedInAt)
-	data.LastSignedInMethod = types.StringValue(user.LastSignedInMethod)
-	data.UpdatedAt = types.StringValue(user.UpdatedAt)
-	data.InsertedAt = types.StringValue(user.InsertedAt)
 	data.DisabledAt = types.StringValue(user.DisabledAt)
 
 	// Save updated data into Terraform state
@@ -233,7 +211,7 @@ func (r *UserResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 		return
 	}
 
-	err := r.client.DeleteUser(data.Id.String())
+	err := r.client.DeleteUser(data.Id.ValueString())
 
 	// If applicable, this is a great opportunity to initialize any necessary
 	// provider client data and make a call using it.
