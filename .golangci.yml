@@ -25,3 +25,9 @@ linters:
     - unparam
     - unused
     - vet
+
+linters-settings:
+  staticcheck:
+    checks:
+      - all
+      - '-S1039'
